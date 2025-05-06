@@ -93,20 +93,27 @@ deploymentSpec:
           \  constants,\n        KServeClient,\n        V1beta1InferenceService,\n\
           \        V1beta1InferenceServiceSpec,\n        V1beta1PredictorSpec,\n \
           \       V1beta1SKLearnSpec,\n    )\n    from tenacity import retry, wait_exponential,\
-          \ stop_after_attempt\n\n    isvc = V1beta1InferenceService(\n        api_version=constants.KSERVE_V1BETA1,\n\
+          \ stop_after_attempt\n\n    print(\"Deploying with mlflow_endpoint:\", os.getenv('AWS_S3_ENDPOINT'))\n\
+          \n    isvc = V1beta1InferenceService(\n        api_version=constants.KSERVE_V1BETA1,\n\
           \        kind=constants.KSERVE_KIND,\n        metadata=V1ObjectMeta(\n \
           \           name=isvc_name,\n            annotations={\"sidecar.istio.io/inject\"\
           : \"false\"},\n        ),\n        spec=V1beta1InferenceServiceSpec(\n \
           \           predictor=V1beta1PredictorSpec(\n                service_account_name=\"\
           kserve-controller-s3\",\n                sklearn=V1beta1SKLearnSpec(\n \
-          \                   storage_uri=model_uri,\n                )\n        \
-          \    )\n        )\n    )\n\n    client = KServeClient()\n    client.create(isvc)\n\
+          \                   storage_uri=model_uri,\n                    env=[\n\
+          \                        V1EnvVar(\n                            name=\"\
+          AWS_S3_ENDPOINT\",\n                            value=os.getenv('AWS_S3_ENDPOINT'),\n\
+          \                        )\n                    ]\n                )\n \
+          \           )\n        )\n    )\n\n    client = KServeClient()\n    client.create(isvc)\n\
           \n    @retry(\n        wait=wait_exponential(multiplier=2, min=1, max=10),\n\
           \        stop=stop_after_attempt(30),\n        reraise=True,\n    )\n  \
           \  def assert_isvc_created(client, isvc_name):\n        assert client.is_isvc_ready(isvc_name),\
           \ f\"Failed to create Inference Service {isvc_name}.\"\n\n    assert_isvc_created(client,\
           \ isvc_name)\n    isvc_resp = client.get(isvc_name)\n    isvc_url = isvc_resp['status']['address']['url']\n\
           \    print(\"Inference URL:\", isvc_url)\n\n    return isvc_url\n\n"
+        env:
+        - name: AWS_S3_ENDPOINT
+          value: http://mlflow-minio.kubeflow:9000
         image: python:3.11
     exec-download-dataset:
       container:
