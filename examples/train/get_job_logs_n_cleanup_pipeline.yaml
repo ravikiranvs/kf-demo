@@ -1,0 +1,68 @@
+# PIPELINE DEFINITION
+# Name: get-job-logs-n-cleanup-pipeline
+components:
+  comp-get-job-logs-n-cleanup:
+    executorLabel: exec-get-job-logs-n-cleanup
+    inputDefinitions:
+      parameters:
+        job_id:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: BOOLEAN
+deploymentSpec:
+  executors:
+    exec-get-job-logs-n-cleanup:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - get_job_logs_n_cleanup
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'git+https://github.com/kubeflow/trainer.git@master#subdirectory=sdk'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef get_job_logs_n_cleanup(job_id: str) -> bool:\n    from kubeflow.trainer\
+          \ import CustomTrainer, TrainerClient\n\n    for s in TrainerClient().get_job(name=job_id).steps:\n\
+          \        print(f\"Step: {s.name}, Status: {s.status}, Devices: {s.device}\
+          \ x {s.device_count}\")\n\n    logs = TrainerClient().get_job_logs(name=job_id)\n\
+          \n    print(logs[\"node-0\"])\n\n    TrainerClient().delete_job(name=job_id)\n\
+          \n"
+        image: python:3.9
+pipelineInfo:
+  name: get-job-logs-n-cleanup-pipeline
+root:
+  dag:
+    tasks:
+      get-job-logs-n-cleanup:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-get-job-logs-n-cleanup
+        inputs:
+          parameters:
+            job_id:
+              runtimeValue:
+                constant: kcd9605c904a
+        taskInfo:
+          name: get-job-logs-n-cleanup
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
