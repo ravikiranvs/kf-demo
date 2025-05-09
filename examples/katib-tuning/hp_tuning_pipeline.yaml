@@ -1,0 +1,66 @@
+# PIPELINE DEFINITION
+# Name: hp-tuning-pipeline
+components:
+  comp-hp-tuning:
+    executorLabel: exec-hp-tuning
+deploymentSpec:
+  executors:
+    exec-hp-tuning:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - hp_tuning
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kubeflow-katib'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef hp_tuning():\n    def objective(parameters):\n        # Import\
+          \ required packages.\n        import time\n        time.sleep(5)\n     \
+          \   # Calculate objective function.\n        result = 4 * int(parameters[\"\
+          a\"]) - float(parameters[\"b\"]) ** 2\n        # Katib parses metrics in\
+          \ this format: <metric-name>=<metric-value>.\n        print(f\"result={result}\"\
+          )\n\n    import kubeflow.katib as katib\n\n    # [2] Create hyperparameter\
+          \ search space.\n    parameters = {\n        \"a\": katib.search.int(min=10,\
+          \ max=20),\n        \"b\": katib.search.double(min=0.1, max=0.2)\n    }\n\
+          \n    # [3] Create Katib Experiment with 12 Trials and 2 CPUs per Trial.\n\
+          \    katib_client = katib.KatibClient(namespace=\"demo-ns\")\n\n    name\
+          \ = \"tune-experiment\"\n    katib_client.tune(\n        name=name,\n  \
+          \      objective=objective,\n        parameters=parameters,\n        objective_metric_name=\"\
+          result\",\n        max_trial_count=12,\n        resources_per_trial={\"\
+          cpu\": \"2\"},\n    )\n\n    # [4] Wait until Katib Experiment is complete\n\
+          \    katib_client.wait_for_experiment_condition(name=name)\n\n    # [5]\
+          \ Get the best hyperparameters.\n    print(katib_client.get_optimal_hyperparameters(name))\n\
+          \n"
+        image: python:3.9
+pipelineInfo:
+  name: hp-tuning-pipeline
+root:
+  dag:
+    tasks:
+      hp-tuning:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-hp-tuning
+        taskInfo:
+          name: hp-tuning
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
