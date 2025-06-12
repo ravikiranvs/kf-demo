@@ -1,0 +1,75 @@
+# PIPELINE DEFINITION
+# Name: delete-ray-cluster-pipeline
+# Inputs:
+#    name: str
+#    namespace: str
+components:
+  comp-destroy-ray-cluster-yaml:
+    executorLabel: exec-destroy-ray-cluster-yaml
+    inputDefinitions:
+      parameters:
+        name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-destroy-ray-cluster-yaml:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - destroy_ray_cluster_yaml
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.1'\
+          \ 'kubernetes==26.1.0' 'tenacity==9.0.0' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef destroy_ray_cluster_yaml(namespace: str, name: str):\n    import\
+          \ yaml\n    from kubernetes import client, config\n\n    config.load_incluster_config()\n\
+          \    api = client.CustomObjectsApi()\n\n    raycluster = api.delete_namespaced_custom_object(\n\
+          \        group='ray.io',\n        version='v1',\n        namespace=namespace,\n\
+          \        plural='rayclusters',\n        name=name\n    )\n\n"
+        image: python:3.11
+pipelineInfo:
+  name: delete-ray-cluster-pipeline
+root:
+  dag:
+    tasks:
+      destroy-ray-cluster-yaml:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-destroy-ray-cluster-yaml
+        inputs:
+          parameters:
+            name:
+              componentInputParameter: name
+            namespace:
+              componentInputParameter: namespace
+        taskInfo:
+          name: destroy-ray-cluster-yaml
+  inputDefinitions:
+    parameters:
+      name:
+        parameterType: STRING
+      namespace:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0

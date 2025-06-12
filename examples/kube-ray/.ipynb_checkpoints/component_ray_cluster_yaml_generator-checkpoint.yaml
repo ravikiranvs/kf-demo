@@ -1,0 +1,79 @@
+name: Generate RayCluster YAML via Helm
+description: Renders the RayCluster Helm chart into Kubernetes manifests without installing.
+
+inputs:
+- name: namespace
+  type: String
+  description: Kubernetes namespace for the RayCluster.
+- name: release_name
+  type: String
+  description: Helm release name for the RayCluster.
+- name: num_nodes
+  type: Integer
+  description: Number of Ray worker nodes.
+- name: gpus_per_node
+  type: Integer
+  description: Number of GPUs per Ray worker node.
+
+outputs:
+- name: rendered_yaml
+  description: Path to the rendered Kubernetes manifests.
+
+implementation:
+  container:
+    image: alpine/helm:latest
+    command:
+    - sh
+    - -c
+    - |
+      namespace=$0
+      release_name=$1
+      num_nodes=$2
+      gpus_per_node=$3
+      rendered_yaml=$4
+      set -e
+      echo "Adding KubeRay Helm repository..."
+      helm repo add kuberay https://ray-project.github.io/kuberay-helm/
+      helm repo update
+
+      echo "Creating temporary values.yaml file..."
+      cat <<EOF > /tmp/values.yaml
+      image:
+        tag: 2.41.0-gpu
+      head:
+        annotations:
+          sidecar.istio.io/inject: "false"
+        resources:
+          limits:
+            cpu: 4
+            memory: 8G
+          requests:
+            cpu: 4
+            memory: 8G
+      worker:
+        replicas: $num_nodes
+        resources:
+          limits:
+            cpu: 4
+            memory: 8G
+            nvidia.com/gpu: $gpus_per_node
+          requests:
+            cpu: 4
+            memory: 8G
+            nvidia.com/gpu: $gpus_per_node
+        annotations:
+          sidecar.istio.io/inject: "false"
+      service:
+        type: NodePort
+      EOF
+
+      echo "Rendering Helm templates to YAML..."
+      helm template $release_name kuberay/ray-cluster \
+        --version 1.3.0 \
+        --namespace $namespace \
+        -f /tmp/values.yaml > "$rendered_yaml"
+    - {inputValue: namespace}
+    - {inputValue: release_name}
+    - {inputValue: num_nodes}
+    - {inputValue: gpus_per_node}
+    - {outputPath: rendered_yaml}

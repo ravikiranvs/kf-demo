@@ -1,0 +1,192 @@
+# PIPELINE DEFINITION
+# Name: create-ray-cluster-pipeline
+# Inputs:
+#    gpus_per_node: int
+#    namespace: str
+#    num_nodes: int
+#    release_name: str
+# Outputs:
+#    Output: str
+components:
+  comp-deploy-ray-cluster-yaml:
+    executorLabel: exec-deploy-ray-cluster-yaml
+    inputDefinitions:
+      artifacts:
+        ray_cluster_yaml:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        namespace:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
+  comp-generate-raycluster-yaml-via-helm:
+    executorLabel: exec-generate-raycluster-yaml-via-helm
+    inputDefinitions:
+      parameters:
+        gpus_per_node:
+          parameterType: NUMBER_INTEGER
+        namespace:
+          parameterType: STRING
+        num_nodes:
+          parameterType: NUMBER_INTEGER
+        release_name:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        rendered_yaml:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-deploy-ray-cluster-yaml:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - deploy_ray_cluster_yaml
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kserve==0.13.1'\
+          \ 'kubernetes==26.1.0' 'tenacity==9.0.0' && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef deploy_ray_cluster_yaml(ray_cluster_yaml: Input[Artifact], namespace:\
+          \ str) -> str:\n    import yaml\n    from kubernetes import client, config\n\
+          \    from tenacity import retry, wait_exponential, stop_after_attempt\n\n\
+          \    with open(ray_cluster_yaml.path, 'r') as f:\n        dep = yaml.safe_load(f)\n\
+          \n    name = dep['metadata']['name']\n\n    config.load_incluster_config()\n\
+          \    api = client.CustomObjectsApi()\n\n    api.create_namespaced_custom_object(\n\
+          \        group='ray.io',\n        version='v1',\n        namespace=namespace,\n\
+          \        plural='rayclusters',\n        body=dep\n    )\n\n    @retry(\n\
+          \        wait=wait_exponential(multiplier=2, min=1, max=10),\n        stop=stop_after_attempt(30),\n\
+          \        reraise=True,\n    )\n    def ray_cluster_wait(api, namespace,\
+          \ name):\n        raycluster = api.get_namespaced_custom_object(\n     \
+          \       group=\"ray.io\",\n            version=\"v1\",\n            namespace=namespace,\n\
+          \            plural=\"rayclusters\",\n            name=name\n        )\n\
+          \        status = raycluster.get(\"status\", {})\n        state = status.get(\"\
+          state\").lower()\n        assert state == \"ready\", f\"Failed to create\
+          \ Ray Cluster: {name} in {namespace}.\"\n\n    ray_cluster_wait(api, namespace,\
+          \ name)\n\n    raycluster = api.get_namespaced_custom_object(\n        group=\"\
+          ray.io\",\n        version=\"v1\",\n        namespace=namespace,\n     \
+          \   plural=\"rayclusters\",\n        name=name\n    )\n\n    # Extract useful\
+          \ info\n    status = raycluster.get(\"status\", {})\n    endpoints = status.get(\"\
+          endpoints\", {})\n    head = status.get(\"head\", {})\n\n    # Format Markdown\
+          \ output\n    md_lines = [\n        f\"# RayCluster `{name}` Status Overview\"\
+          ,\n        \"## Endpoints\",\n    ]\n    for key, val in endpoints.items():\n\
+          \        md_lines.append(f\"- **{key}**: `{val}`\")\n\n    md_lines += [\n\
+          \        \"\\n## Head Node\",\n        f\"- **podName**: `{head.get('podName',\
+          \ 'N/A')}`\",\n        f\"- **podIP**: `{head.get('podIP', 'N/A')}`\",\n\
+          \        f\"- **serviceName**: `{head.get('serviceName', 'N/A')}`\",\n \
+          \       f\"- **serviceIP**: `{head.get('serviceIP', 'N/A')}`\"\n    ]\n\n\
+          \    md_info = '\\n'.join(md_lines)\n\n    return md_info\n\n"
+        image: python:3.11
+    exec-generate-raycluster-yaml-via-helm:
+      container:
+        command:
+        - sh
+        - -c
+        - "namespace=$0\nrelease_name=$1\nnum_nodes=$2\ngpus_per_node=$3\nrendered_yaml=$4\n\
+          set -e\necho \"Adding KubeRay Helm repository...\"\nhelm repo add kuberay\
+          \ https://ray-project.github.io/kuberay-helm/\nhelm repo update\n\necho\
+          \ \"Creating temporary values.yaml file...\"\ncat <<EOF > /tmp/values.yaml\n\
+          image:\n  tag: 2.41.0-gpu\nhead:\n  annotations:\n    sidecar.istio.io/inject:\
+          \ \"false\"\n  resources:\n    limits:\n      cpu: 4\n      memory: 8G\n\
+          \    requests:\n      cpu: 4\n      memory: 8G\nworker:\n  replicas: $num_nodes\n\
+          \  resources:\n    limits:\n      cpu: 4\n      memory: 8G\n      nvidia.com/gpu:\
+          \ $gpus_per_node\n    requests:\n      cpu: 4\n      memory: 8G\n      nvidia.com/gpu:\
+          \ $gpus_per_node\n  annotations:\n    sidecar.istio.io/inject: \"false\"\
+          \nservice:\n  type: NodePort\nEOF\n\necho \"Rendering Helm templates to\
+          \ YAML...\"\nhelm template $release_name kuberay/ray-cluster \\\n  --version\
+          \ 1.3.0 \\\n  --namespace $namespace \\\n  -f /tmp/values.yaml > \"$rendered_yaml\"\
+          \n"
+        - '{{$.inputs.parameters[''namespace'']}}'
+        - '{{$.inputs.parameters[''release_name'']}}'
+        - '{{$.inputs.parameters[''num_nodes'']}}'
+        - '{{$.inputs.parameters[''gpus_per_node'']}}'
+        - '{{$.outputs.artifacts[''rendered_yaml''].path}}'
+        image: alpine/helm:latest
+pipelineInfo:
+  name: create-ray-cluster-pipeline
+root:
+  dag:
+    outputs:
+      parameters:
+        Output:
+          valueFromParameter:
+            outputParameterKey: Output
+            producerSubtask: deploy-ray-cluster-yaml
+    tasks:
+      deploy-ray-cluster-yaml:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-deploy-ray-cluster-yaml
+        dependentTasks:
+        - generate-raycluster-yaml-via-helm
+        inputs:
+          artifacts:
+            ray_cluster_yaml:
+              taskOutputArtifact:
+                outputArtifactKey: rendered_yaml
+                producerTask: generate-raycluster-yaml-via-helm
+          parameters:
+            namespace:
+              runtimeValue:
+                constant: demo-ns
+        taskInfo:
+          name: deploy-ray-cluster-yaml
+      generate-raycluster-yaml-via-helm:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-generate-raycluster-yaml-via-helm
+        inputs:
+          parameters:
+            gpus_per_node:
+              runtimeValue:
+                constant: 1.0
+            namespace:
+              componentInputParameter: namespace
+            num_nodes:
+              runtimeValue:
+                constant: 1.0
+            release_name:
+              componentInputParameter: release_name
+        taskInfo:
+          name: generate-raycluster-yaml-via-helm
+  inputDefinitions:
+    parameters:
+      gpus_per_node:
+        parameterType: NUMBER_INTEGER
+      namespace:
+        parameterType: STRING
+      num_nodes:
+        parameterType: NUMBER_INTEGER
+      release_name:
+        parameterType: STRING
+  outputDefinitions:
+    parameters:
+      Output:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
