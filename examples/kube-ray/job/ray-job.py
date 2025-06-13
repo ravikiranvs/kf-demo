@@ -16,7 +16,6 @@ if __name__ == "__main__":
     trainer = TorchTrainer(
         train_loop_per_worker=train_func,
         scaling_config=ScalingConfig(num_workers=2, use_gpu=True),
-        run_config=RunConfig(storage_path="./ray_results")
     )
     result = trainer.fit()
     print("Training completed.")
