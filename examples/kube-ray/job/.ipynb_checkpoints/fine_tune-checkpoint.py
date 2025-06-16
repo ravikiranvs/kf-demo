@@ -78,7 +78,23 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         push_to_hub=False,
         fp16=True,
         label_names=["labels"],
-        deepspeed="ds_config.json",
+        deepspeed={
+            "train_batch_size": "auto",
+            "gradient_accumulation_steps": "auto",
+            "gradient_clipping": 1.0,
+            "fp16": {
+                "enabled": True
+            },
+            "zero_optimization": {
+                "stage": 1,
+                "allgather_partitions": True,
+                "allgather_bucket_size": 200000000,
+                "overlap_comm": True,
+                "contiguous_gradients": True
+            },
+            "steps_per_print": 16,
+            "wall_clock_breakdown": False
+        },
         gradient_accumulation_steps=2,
     )
 

@@ -43,10 +43,19 @@ implementation:
       head:
         annotations:
           sidecar.istio.io/inject: "false"
+        containerEnv:
+          - name: RAY_GRAFANA_HOST
+            value: http://kube-prometheus-stack-1745905925-grafana.prometheus.svc.cluster.local:80
+          - name: RAY_PROMETHEUS_HOST
+            value: http://prometheus-operated.prometheus.svc.cluster.local:9090
+          - name: RAY_PROMETHEUS_NAME
+            value: Prometheus
+          - name: RAY_GRAFANA_IFRAME_HOST
+            value: http://172.18.52.185:31529
         resources:
           limits:
             cpu: 4
-            memory: 8G
+            memory: 16G
           requests:
             cpu: 4
             memory: 8G

@@ -1,0 +1,237 @@
+# PIPELINE DEFINITION
+# Name: ray-job-submit-pipeline
+# Inputs:
+#    host: str
+#    port: int
+components:
+  comp-make-artifact:
+    executorLabel: exec-make-artifact
+    inputDefinitions:
+      parameters:
+        code_lines:
+          parameterType: STRING
+    outputDefinitions:
+      artifacts:
+        output_file:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+  comp-submit-job:
+    executorLabel: exec-submit-job
+    inputDefinitions:
+      artifacts:
+        code_dir:
+          artifactType:
+            schemaTitle: system.Artifact
+            schemaVersion: 0.0.1
+      parameters:
+        host:
+          parameterType: STRING
+        port:
+          parameterType: NUMBER_INTEGER
+deploymentSpec:
+  executors:
+    exec-make-artifact:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - make_artifact
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef make_artifact(code_lines: str, output_file: Output[Artifact]):\n\
+          \    import os\n    os.makedirs(output_file.path, exist_ok=True)\n    output_file_path\
+          \ = os.path.join(output_file.path, \"job.py\")\n\n    with open(output_file_path,\
+          \ 'w') as f:\n        f.write(code_lines)\n\n"
+        image: python:3.9
+    exec-submit-job:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - submit_job
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef submit_job(code_dir: Input[Artifact], host: str, port: int):\n\
+          \    import os\n    import shutil\n    from ray.job_submission import JobSubmissionClient\n\
+          \n    target_dir = \"./code\"\n    if os.path.exists(target_dir):\n    \
+          \    shutil.rmtree(target_dir)\n    shutil.copytree(code_dir.path, target_dir)\n\
+          \n    client = JobSubmissionClient(f\"http://{host}:{port}\")\n\n    job_id\
+          \ = client.submit_job(\n        entrypoint=\"python job.py\",\n        runtime_env={\n\
+          \            \"working_dir\": target_dir,\n            \"pip\": [\n    \
+          \            \"deepspeed\",\n                \"torch\",\n              \
+          \  \"datasets\",\n                \"transformers\",\n                \"\
+          torchmetrics\",\n                \"ray[train]\"\n            ]\n       \
+          \ }\n    )\n\n    print(job_id)\n\n"
+        image: rayproject/ray:2.41.0
+pipelineInfo:
+  name: ray-job-submit-pipeline
+root:
+  dag:
+    tasks:
+      make-artifact:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-make-artifact
+        inputs:
+          parameters:
+            code_lines:
+              runtimeValue:
+                constant: "\"\"\"\nMinimal Ray Train + DeepSpeed example adapted from\n\
+                  https://github.com/huggingface/accelerate/blob/main/examples/nlp_example.py\n\
+                  \nFine-tune a BERT model with DeepSpeed ZeRO-3 and Ray Train and\
+                  \ Ray Data\n\"\"\"\n\nfrom tempfile import TemporaryDirectory\n\n\
+                  import deepspeed\nimport torch\nfrom datasets import load_dataset\n\
+                  from deepspeed.accelerator import get_accelerator\nfrom torchmetrics.classification\
+                  \ import BinaryAccuracy, BinaryF1Score\nfrom transformers import\
+                  \ AutoModelForSequenceClassification, AutoTokenizer, set_seed\n\n\
+                  import ray\nimport ray.train\nfrom ray.train import Checkpoint,\
+                  \ DataConfig, ScalingConfig\nfrom ray.train.torch import TorchTrainer\n\
+                  \n\ndef train_func(config):\n    \"\"\"Your training function that\
+                  \ will be launched on each worker.\"\"\"\n\n    # Unpack training\
+                  \ configs\n    set_seed(config[\"seed\"])\n    num_epochs = config[\"\
+                  num_epochs\"]\n    train_batch_size = config[\"train_batch_size\"\
+                  ]\n    eval_batch_size = config[\"eval_batch_size\"]\n\n    # Instantiate\
+                  \ the Model\n    model = AutoModelForSequenceClassification.from_pretrained(\n\
+                  \        \"bert-base-cased\", return_dict=True\n    )\n\n    # Prepare\
+                  \ Ray Data Loaders\n    # ====================================================\n\
+                  \    train_ds = ray.train.get_dataset_shard(\"train\")\n    eval_ds\
+                  \ = ray.train.get_dataset_shard(\"validation\")\n\n    tokenizer\
+                  \ = AutoTokenizer.from_pretrained(\"bert-base-cased\")\n\n    def\
+                  \ collate_fn(batch):\n        outputs = tokenizer(\n           \
+                  \ list(batch[\"sentence1\"]),\n            list(batch[\"sentence2\"\
+                  ]),\n            truncation=True,\n            padding=\"longest\"\
+                  ,\n            return_tensors=\"pt\",\n        )\n        outputs[\"\
+                  labels\"] = torch.LongTensor(batch[\"label\"])\n        return outputs\n\
+                  \n    train_dataloader = train_ds.iter_torch_batches(\n        batch_size=train_batch_size,\
+                  \ collate_fn=collate_fn\n    )\n    eval_dataloader = eval_ds.iter_torch_batches(\n\
+                  \        batch_size=eval_batch_size, collate_fn=collate_fn\n   \
+                  \ )\n    # ====================================================\n\
+                  \n    # Initialize DeepSpeed Engine\n    model, optimizer, _, lr_scheduler\
+                  \ = deepspeed.initialize(\n        model=model,\n        model_parameters=model.parameters(),\n\
+                  \        config=deepspeed_config,\n    )\n    device = get_accelerator().device_name(model.local_rank)\n\
+                  \n    # Initialize Evaluation Metrics\n    f1 = BinaryF1Score().to(device)\n\
+                  \    accuracy = BinaryAccuracy().to(device)\n\n    for epoch in\
+                  \ range(num_epochs):\n        # Training\n        model.train()\n\
+                  \        for batch in train_dataloader:\n            batch = {k:\
+                  \ v.to(device) for k, v in batch.items()}\n            outputs =\
+                  \ model(**batch)\n            loss = outputs.loss\n            model.backward(loss)\n\
+                  \            optimizer.step()\n            lr_scheduler.step()\n\
+                  \            optimizer.zero_grad()\n\n        # Evaluation\n   \
+                  \     model.eval()\n        for batch in eval_dataloader:\n    \
+                  \        batch = {k: v.to(device) for k, v in batch.items()}\n \
+                  \           with torch.no_grad():\n                outputs = model(**batch)\n\
+                  \            predictions = outputs.logits.argmax(dim=-1)\n\n   \
+                  \         f1.update(predictions, batch[\"labels\"])\n          \
+                  \  accuracy.update(predictions, batch[\"labels\"])\n\n        #\
+                  \ torchmetrics will aggregate the metrics across all workers\n \
+                  \       eval_metric = {\n            \"f1\": f1.compute().item(),\n\
+                  \            \"accuracy\": accuracy.compute().item(),\n        }\n\
+                  \        f1.reset()\n        accuracy.reset()\n\n        if model.global_rank\
+                  \ == 0:\n            print(f\"epoch {epoch}:\", eval_metric)\n\n\
+                  \        # Report checkpoint and metrics to Ray Train\n        #\
+                  \ ==============================================================\n\
+                  \        with TemporaryDirectory() as tmpdir:\n            # Each\
+                  \ worker saves its own checkpoint shard\n            model.save_checkpoint(tmpdir)\n\
+                  \n            # Ensure all workers finished saving their checkpoint\
+                  \ shard\n            torch.distributed.barrier()\n\n           \
+                  \ # Report checkpoint shards from each worker in parallel\n    \
+                  \        ray.train.report(\n                metrics=eval_metric,\
+                  \ checkpoint=Checkpoint.from_directory(tmpdir)\n            )\n\
+                  \        # ==============================================================\n\
+                  \n\nif __name__ == \"__main__\":\n    deepspeed_config = {\n   \
+                  \     \"optimizer\": {\n            \"type\": \"AdamW\",\n     \
+                  \       \"params\": {\n                \"lr\": 2e-5,\n         \
+                  \   },\n        },\n        \"scheduler\": {\"type\": \"WarmupLR\"\
+                  , \"params\": {\"warmup_num_steps\": 100}},\n        \"fp16\": {\"\
+                  enabled\": True},\n        \"bf16\": {\"enabled\": False},  # Turn\
+                  \ this on if using AMPERE GPUs.\n        \"zero_optimization\":\
+                  \ {\n            \"stage\": 3,\n            \"offload_optimizer\"\
+                  : {\n                \"device\": \"none\",\n            },\n   \
+                  \         \"offload_param\": {\n                \"device\": \"none\"\
+                  ,\n            },\n        },\n        \"gradient_accumulation_steps\"\
+                  : 1,\n        \"gradient_clipping\": True,\n        \"steps_per_print\"\
+                  : 10,\n        \"train_micro_batch_size_per_gpu\": 16,\n       \
+                  \ \"wall_clock_breakdown\": False,\n    }\n\n    training_config\
+                  \ = {\n        \"seed\": 42,\n        \"num_epochs\": 3,\n     \
+                  \   \"train_batch_size\": 16,\n        \"eval_batch_size\": 32,\n\
+                  \        \"deepspeed_config\": deepspeed_config,\n    }\n\n    #\
+                  \ Prepare Ray Datasets\n    hf_datasets = load_dataset(\"glue\"\
+                  , \"mrpc\")\n    ray_datasets = {\n        \"train\": ray.data.from_huggingface(hf_datasets[\"\
+                  train\"]),\n        \"validation\": ray.data.from_huggingface(hf_datasets[\"\
+                  validation\"]),\n    }\n\n    trainer = TorchTrainer(\n        train_func,\n\
+                  \        train_loop_config=training_config,\n        scaling_config=ScalingConfig(num_workers=1,\
+                  \ use_gpu=True),\n        datasets=ray_datasets,\n        dataset_config=DataConfig(datasets_to_split=[\"\
+                  train\", \"validation\"]),\n        # If running in a multi-node\
+                  \ cluster, this is where you\n        # should configure the run's\
+                  \ persistent storage that is accessible\n        # across all worker\
+                  \ nodes.\n        # run_config=ray.train.RunConfig(storage_path=\"\
+                  s3://...\"),\n    )\n\n    result = trainer.fit()\n\n    # Retrieve\
+                  \ the best checkponints from results\n    _ = result.best_checkpoints\n"
+        taskInfo:
+          name: make-artifact
+      submit-job:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-submit-job
+        dependentTasks:
+        - make-artifact
+        inputs:
+          artifacts:
+            code_dir:
+              taskOutputArtifact:
+                outputArtifactKey: output_file
+                producerTask: make-artifact
+          parameters:
+            host:
+              componentInputParameter: host
+            port:
+              componentInputParameter: port
+        taskInfo:
+          name: submit-job
+  inputDefinitions:
+    parameters:
+      host:
+        parameterType: STRING
+      port:
+        parameterType: NUMBER_INTEGER
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
