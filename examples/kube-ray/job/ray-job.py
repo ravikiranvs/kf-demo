@@ -51,7 +51,7 @@ if __name__ == "__main__":
             device=0 if torch.cuda.is_available() else -1
         )
         
-        mlflow.set_experiment("finetuned-qwen2.5")
+        mlflow.set_experiment("finetuned_qwen2.5")
         with mlflow.start_run():
             mlflow.transformers.log_model(
                 transformers_model=gen_ai_pipeline,
