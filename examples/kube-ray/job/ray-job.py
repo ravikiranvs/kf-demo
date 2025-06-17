@@ -1,5 +1,5 @@
 import ray
-from ray.train import ScalingConfig, RunConfig, FailureConfig
+from ray.train import ScalingConfig, RunConfig, FailureConfig, Checkpoint
 from ray.train.torch import TorchTrainer
 import mlflow
 import os

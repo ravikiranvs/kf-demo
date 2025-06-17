@@ -2,7 +2,6 @@ import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
-from ray.train import Checkpoint
 
 # Print candidate target modules for LoRA injection
 def print_lora_target_modules(model):
