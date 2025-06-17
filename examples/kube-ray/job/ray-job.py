@@ -6,6 +6,7 @@ import os
 import ray.train.huggingface.transformers
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
+import torch
 
 def train_func():
     # Import inside function to avoid serialization issues
