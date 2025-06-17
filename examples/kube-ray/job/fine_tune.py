@@ -52,7 +52,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         )
         prompt_len = len(tokenizer(example["prompt"]).input_ids)
         labels = tokenized["input_ids"].copy()
-        labels[:prompt_len] = -100
+        labels[:prompt_len] = [-100] * prompt_len
         tokenized["labels"] = labels
         return tokenized
 
