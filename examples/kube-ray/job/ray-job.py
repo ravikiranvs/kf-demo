@@ -57,5 +57,10 @@ if __name__ == "__main__":
                 transformers_model=gen_ai_pipeline,
                 name="cypher-finetuned-qwen2.5-1b",
                 artifact_path="model",
+                pip_requirements=[
+                    "accelerate",
+                    "transformers[torch]",
+                    "torch",
+                ],
             )
             print("Checkpoint saved to MLFlow")
