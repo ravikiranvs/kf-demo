@@ -2,6 +2,7 @@ import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
+import ray.train.huggingface.transformers
 
 # Print candidate target modules for LoRA injection
 def print_lora_target_modules(model):
@@ -115,6 +116,10 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         train_dataset=dataset_train,
         eval_dataset=dataset_test,
     )
+
+    callback = ray.train.huggingface.transformers.RayTrainReportCallback()
+    trainer.add_callback(callback)
+    trainer = ray.train.huggingface.transformers.prepare_trainer(trainer)
     
     # Resume only if a checkpoint is available
     checkpoint_path = None

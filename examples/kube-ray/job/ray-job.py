@@ -3,6 +3,7 @@ from ray.train import ScalingConfig, RunConfig, FailureConfig, Checkpoint
 from ray.train.torch import TorchTrainer
 import mlflow
 import os
+import ray.train.huggingface.transformers
 
 def train_func():
     # Import inside function to avoid serialization issues
@@ -24,8 +25,12 @@ if __name__ == "__main__":
     print("Training completed.")
     
     # Optionally load best checkpoint:
-    ckpt = result.checkpoint.as_directory()
-    mlflow.set_experiment("finetuned-qwen2.5")
-    with mlflow.start_run():
-        mlflow.log_artifacts(ckpt_dir, artifact_path="model")
-        print("Checkpoint saved to MLFlow")
+    with result.checkpoint.as_directory() as checkpoint_dir:
+        checkpoint_path = os.path.join(
+            checkpoint_dir,
+            ray.train.huggingface.transformers.RayTrainReportCallback.CHECKPOINT_NAME,
+        )
+        mlflow.set_experiment("finetuned-qwen2.5")
+        with mlflow.start_run():
+            mlflow.log_artifacts(checkpoint_path, artifact_path="model")
+            print("Checkpoint saved to MLFlow")
