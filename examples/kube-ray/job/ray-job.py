@@ -56,5 +56,6 @@ if __name__ == "__main__":
             mlflow.transformers.log_model(
                 transformers_model=gen_ai_pipeline,
                 name="cypher-finetuned-qwen2.5-1b",
+                artifact_path="model",
             )
             print("Checkpoint saved to MLFlow")
