@@ -33,6 +33,7 @@ if __name__ == "__main__":
         )
 
         # Load base model and merge adapter
+        model_name = "Qwen/Qwen2.5-Coder-1.5B"
         base = AutoModelForCausalLM.from_pretrained(model_name)
         merged = PeftModel.from_pretrained(base, checkpoint_path).merge_and_unload()
         tokenizer = AutoTokenizer.from_pretrained(model_name)
