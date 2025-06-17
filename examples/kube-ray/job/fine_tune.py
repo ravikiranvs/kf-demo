@@ -78,6 +78,9 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         push_to_hub=False,
         fp16=True,
         label_names=["labels"],
+        save_strategy="steps",               # Save checkpoint every N steps
+        save_steps=500,                      # Save every 500 steps
+        save_total_limit=2,                  # Keep only the last 2 checkpoints
         deepspeed={
             "train_batch_size": "auto",
             "gradient_accumulation_steps": "auto",
@@ -105,4 +108,4 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         eval_dataset=dataset_test,
     )
     
-    trainer.train()
+    trainer.train(resume_from_checkpoint=True)
