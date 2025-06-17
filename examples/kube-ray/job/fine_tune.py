@@ -48,7 +48,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
             example["prompt"] + example["completion"],
             truncation=True,
             padding="max_length",             # or "longest"
-            max_length=3072                   # or 4096, adjust accordingly
+            max_length=1024                   # or 4096, adjust accordingly
         )
         prompt_len = len(tokenizer(example["prompt"]).input_ids)
         labels = tokenized["input_ids"].copy()
