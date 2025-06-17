@@ -108,4 +108,17 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         eval_dataset=dataset_test,
     )
     
-    trainer.train(resume_from_checkpoint=True)
+    # Resume only if a checkpoint is available
+    checkpoint_path = None
+    if os.path.exists(output_dir):
+        subdirs = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
+        if subdirs:
+            latest_ckpt = sorted(subdirs, key=lambda x: int(x.split("-")[-1]))[-1]
+            checkpoint_path = os.path.join(output_dir, latest_ckpt)
+            print(f"Resuming from checkpoint: {checkpoint_path}")
+        else:
+            print("No checkpoints found. Starting fresh.")
+    else:
+        print("Output directory does not exist. Starting fresh.")
+
+    trainer.train(resume_from_checkpoint=checkpoint_path)
