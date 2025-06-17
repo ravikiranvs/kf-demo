@@ -16,18 +16,9 @@ def train_func():
     output_dir = "./finetuned_model"
     finetune(model_name, dataset_name, output_dir)
 
-if __name__ == "__main__":
-    ray.init()
-    trainer = TorchTrainer(
-        train_loop_per_worker=train_func,
-        scaling_config=ScalingConfig(num_workers=2, use_gpu=True),
-        run_config=RunConfig(failure_config=FailureConfig(max_failures=3)),
-    )
-    result = trainer.fit()
-    print("Training completed.")
-    
+def save_model(train_result):
     # Optionally load best checkpoint:
-    with result.checkpoint.as_directory() as checkpoint_dir:
+    with train_result.checkpoint.as_directory() as checkpoint_dir:
         checkpoint_path = os.path.join(
             checkpoint_dir,
             ray.train.huggingface.transformers.RayTrainReportCallback.CHECKPOINT_NAME,
@@ -65,3 +56,17 @@ if __name__ == "__main__":
                 ],
             )
             print("Checkpoint saved to MLFlow")
+
+if __name__ == "__main__":
+    ray.init()
+    trainer = TorchTrainer(
+        train_loop_per_worker=train_func,
+        scaling_config=ScalingConfig(num_workers=2, use_gpu=True),
+        run_config=RunConfig(failure_config=FailureConfig(max_failures=3)),
+    )
+    result = trainer.fit()
+    print("Training completed.")
+
+    # save_model(result)
+    
+    

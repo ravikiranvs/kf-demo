@@ -31,6 +31,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
     # Load model and tokenizer
     model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=quant_config)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token = tokenizer.eos_token
 
     print_lora_target_modules(model)
 
@@ -42,19 +43,18 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
             "completion": example["cypher"]
         }
 
-    # Tokenize
     def tokenize_function(example):
-        return tokenizer(
+        tokenized = tokenizer(
             example["prompt"] + example["completion"],
             truncation=True,
-            padding="max_length",
-            max_length=512
+            padding="max_length",             # or "longest"
+            max_length=3072                   # or 4096, adjust accordingly
         )
-
-    # Ensure labels = input_ids (common for causal LM)
-    def format_for_training(example):
-        example["labels"] = example["input_ids"]
-        return example
+        prompt_len = len(tokenizer(example["prompt"]).input_ids)
+        labels = tokenized["input_ids"].copy()
+        labels[:prompt_len] = -100
+        tokenized["labels"] = labels
+        return tokenized
 
     # dataset = load_dataset(dataset_name)
     dataset = load_dataset(
@@ -66,7 +66,6 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
     )
     dataset = dataset.map(data_formatter)
     dataset = dataset.map(tokenize_function)
-    dataset = dataset.map(format_for_training)
 
     lora_config = LoraConfig(
         r=8,
