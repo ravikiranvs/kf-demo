@@ -5,6 +5,7 @@ import mlflow
 import os
 import ray.train.huggingface.transformers
 from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel
 
 def train_func():
     # Import inside function to avoid serialization issues
@@ -30,13 +31,23 @@ if __name__ == "__main__":
             checkpoint_dir,
             ray.train.huggingface.transformers.RayTrainReportCallback.CHECKPOINT_NAME,
         )
+
+        # Load base model and merge adapter
+        base = AutoModelForCausalLM.from_pretrained(model_name)
+        merged = PeftModel.from_pretrained(base, checkpoint_path).merge_and_unload()
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+        merged_dir = os.path.join(checkpoint_path, "ft_merged")
+        os.makedirs(merged_dir, exist_ok=True)
+        merged.save_pretrained(merged_dir)
+        tokenizer.save_pretrained(merged_dir)
         
         mlflow.set_experiment("finetuned-qwen2.5")
         with mlflow.start_run():
             mlflow.transformers.log_model(
-                transformers_model=checkpoint_path,
+                transformers_model=merged_dir,
                 artifact_path="transformers_model",
                 task="text-generation",
-                save_pretrained=True  # set False if you prefer reference-only logging :contentReference[oaicite:1]{index=1}
+                save_pretrained=True
             )
             print("Checkpoint saved to MLFlow")
