@@ -1,3 +1,4 @@
+import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
