@@ -2,6 +2,7 @@ import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
+from ray.train import Checkpoint
 
 # Print candidate target modules for LoRA injection
 def print_lora_target_modules(model):
@@ -130,3 +131,4 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         print("Output directory does not exist. Starting fresh.")
 
     trainer.train(resume_from_checkpoint=checkpoint_path)
+    return Checkpoint.from_directory(output_dir)
