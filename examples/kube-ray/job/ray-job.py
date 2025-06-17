@@ -1,6 +1,7 @@
 import ray
 from ray.train import ScalingConfig, RunConfig, FailureConfig
 from ray.train.torch import TorchTrainer
+import mlflow
 import os
 
 def train_func():
@@ -20,6 +21,10 @@ if __name__ == "__main__":
     )
     result = trainer.fit()
     print("Training completed.")
+    
     # Optionally load best checkpoint:
-    # ckpt = result.checkpoint.as_directory()
-    # print("Checkpoint saved at:", ckpt)
+    ckpt = result.checkpoint.as_directory()
+    mlflow.set_experiment("finetuned-qwen2.5")
+    with mlflow.start_run():
+        mlflow.log_artifacts(ckpt_dir, artifact_path="model")
+        print("Checkpoint saved to MLFlow")

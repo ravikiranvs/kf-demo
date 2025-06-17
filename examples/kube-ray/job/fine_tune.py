@@ -55,7 +55,14 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         example["labels"] = example["input_ids"]
         return example
 
-    dataset = load_dataset(dataset_name)
+    # dataset = load_dataset(dataset_name)
+    dataset = load_dataset(
+        dataset_name,
+        split={
+            "train": "train[:5%]",
+            "test":  "test[:5%]"
+        }
+    )
     dataset = dataset.map(data_formatter)
     dataset = dataset.map(tokenize_function)
     dataset = dataset.map(format_for_training)
