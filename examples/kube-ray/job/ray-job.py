@@ -4,6 +4,7 @@ from ray.train.torch import TorchTrainer
 import mlflow
 import os
 import ray.train.huggingface.transformers
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
 
 def train_func():
     # Import inside function to avoid serialization issues
@@ -29,7 +30,27 @@ if __name__ == "__main__":
             checkpoint_dir,
             ray.train.huggingface.transformers.RayTrainReportCallback.CHECKPOINT_NAME,
         )
+
+        # Load model & tokenizer from checkpoint
+        model = AutoModelForCausalLM.from_pretrained(checkpoint_path)
+        tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+
+        gen_ai_pipeline = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            device=0 if torch.cuda.is_available() else -1
+        )
+
+        example_input = ["## Schema:\n<schema>\n\n## Question:\n<question>\n\nCypher:\n"]
+        
         mlflow.set_experiment("finetuned-qwen2.5")
         with mlflow.start_run():
-            mlflow.log_artifacts(checkpoint_path, artifact_path="model")
+            mlflow.transformers.log_model(
+                transformers_model=gen_ai_pipeline,
+                artifact_path="transformers_model",
+                input_example=example_input,
+                signature=mlflow.transformers.generate_signature_output(gen_pipeline, example_input, model_config=None),
+                save_pretrained=True
+            )
             print("Checkpoint saved to MLFlow")
