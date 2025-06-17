@@ -50,7 +50,8 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
             padding="max_length",             # or "longest"
             max_length=1024                   # or 4096, adjust accordingly
         )
-        prompt_len = len(tokenizer(example["prompt"]).input_ids)
+        raw_prompt_len = tokenizer(example["prompt"], truncation=True, max_length=1024).input_ids
+        prompt_len = min(raw_prompt_len, 1024)
         labels = tokenized["input_ids"].copy()
         labels[:prompt_len] = [-100] * prompt_len
         tokenized["labels"] = labels
