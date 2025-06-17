@@ -56,6 +56,7 @@ if __name__ == "__main__":
             mlflow.transformers.log_model(
                 transformers_model=gen_ai_pipeline,
                 name="cypher-finetuned-qwen2.5-1b",
+                registered_model_name="cypher_finetuned_qwen2.5_1b",
                 artifact_path="model",
                 pip_requirements=[
                     "accelerate",
