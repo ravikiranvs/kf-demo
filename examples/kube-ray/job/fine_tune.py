@@ -131,4 +131,3 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         print("Output directory does not exist. Starting fresh.")
 
     trainer.train(resume_from_checkpoint=checkpoint_path)
-    return Checkpoint.from_directory(output_dir)
