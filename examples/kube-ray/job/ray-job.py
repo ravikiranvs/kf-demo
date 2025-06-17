@@ -12,7 +12,6 @@ def train_func():
     dataset_name = "neo4j/text2cypher-2025v1"
     output_dir = "./finetuned_model"
     finetune(model_name, dataset_name, output_dir)
-    return Checkpoint.from_directory(output_dir)
 
 if __name__ == "__main__":
     ray.init()
