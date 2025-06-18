@@ -22,10 +22,10 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         dataset_name (str): The name of the dataset to download.
     """
     quant_config = BitsAndBytesConfig(
-        load_in_8bit=True,
-        llm_int8_threshold=6.0,
-        llm_int8_skip_modules=None,
-        llm_int8_enable_fp32_cpu_offload=True,
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype="float16",
+        bnb_4bit_use_double_quant=True,
+        bnb_4bit_quant_type="nf4"
     )
     
     # Load model and tokenizer
