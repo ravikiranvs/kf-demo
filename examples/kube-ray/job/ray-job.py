@@ -63,7 +63,7 @@ def save_model(train_result):
 
 if __name__ == "__main__":
     ray.init()
-    run_name = uuid.uuid4()
+    run_name = str(uuid.uuid4())
     trainer = TorchTrainer(
         train_loop_per_worker=train_func,
         scaling_config=ScalingConfig(num_workers=2, use_gpu=True),
