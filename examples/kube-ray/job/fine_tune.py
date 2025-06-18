@@ -21,6 +21,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         model_name (str): The name of the pre-trained model to download.
         dataset_name (str): The name of the dataset to download.
     """
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
     quant_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype="float16",
