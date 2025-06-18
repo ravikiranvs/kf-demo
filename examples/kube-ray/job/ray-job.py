@@ -12,9 +12,13 @@ import torch
 def train_func():
     # Import inside function to avoid serialization issues
     from fine_tune import finetune
+    
+    print(f"Running on node: {os.uname().nodename}")
+    print(f"CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES')}")
+    
     model_name = "Qwen/Qwen2.5-Coder-1.5B"
     dataset_name = "neo4j/text2cypher-2025v1"
-    finetune(model_name, dataset_name)
+    finetune(model_name, dataset_name, "checkpoint_dir")
 
 def save_model(train_result):
     # Optionally load best checkpoint:

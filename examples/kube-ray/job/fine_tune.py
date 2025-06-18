@@ -82,7 +82,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
     dataset_test = dataset["test"].shuffle(seed=47)
 
     training_args = TrainingArguments(
-        output_dir="checkpoint_dir",
+        output_dir=output_dir,
         eval_strategy="epoch",
         push_to_hub=False,
         fp16=True,
