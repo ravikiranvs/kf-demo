@@ -4,6 +4,18 @@
 #    name: str
 #    namespace: str
 components:
+  comp-delete-ray-pvc:
+    executorLabel: exec-delete-ray-pvc
+    inputDefinitions:
+      parameters:
+        name:
+          parameterType: STRING
+        namespace:
+          parameterType: STRING
+    outputDefinitions:
+      parameters:
+        Output:
+          parameterType: STRING
   comp-destroy-ray-cluster-yaml:
     executorLabel: exec-destroy-ray-cluster-yaml
     inputDefinitions:
@@ -14,6 +26,43 @@ components:
           parameterType: STRING
 deploymentSpec:
   executors:
+    exec-delete-ray-pvc:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - delete_ray_pvc
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'kubernetes==26.1.0'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef delete_ray_pvc(namespace: str, name: str) -> str:\n    from kubernetes\
+          \ import client, config\n\n    # Load cluster credentials\n    config.load_incluster_config()\n\
+          \n    core_v1 = client.CoreV1Api()\n\n    # Optional delete options\u2014\
+          for example, enabling graceful deletion:\n    delete_options = client.V1DeleteOptions(\n\
+          \        propagation_policy=\"Foreground\",  # ensures dependent resources\
+          \ are also deleted\n        grace_period_seconds=0\n    )\n\n    core_v1.delete_namespaced_persistent_volume_claim(\n\
+          \        name=f\"pvc-{name}\",\n        namespace=namespace,\n        body=delete_options\n\
+          \    )\n\n    return f\"Deletion initiated for PVC 'pvc-{name}' in namespace\
+          \ '{namespace}'.\"\n\n"
+        image: python:3.11
     exec-destroy-ray-cluster-yaml:
       container:
         args:
@@ -43,20 +92,36 @@ deploymentSpec:
         - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
           \ *\n\ndef destroy_ray_cluster_yaml(namespace: str, name: str):\n    import\
           \ yaml\n    from kubernetes import client, config\n\n    config.load_incluster_config()\n\
-          \    api = client.CustomObjectsApi()\n\n    raycluster = api.delete_namespaced_custom_object(\n\
-          \        group='ray.io',\n        version='v1',\n        namespace=namespace,\n\
-          \        plural='rayclusters',\n        name=name\n    )\n\n"
+          \    api = client.CustomObjectsApi()\n\n    cluster_name = f\"{name}-kuberay\"\
+          \n\n    raycluster = api.delete_namespaced_custom_object(\n        group='ray.io',\n\
+          \        version='v1',\n        namespace=namespace,\n        plural='rayclusters',\n\
+          \        name=cluster_name\n    )\n\n"
         image: python:3.11
 pipelineInfo:
   name: delete-ray-cluster-pipeline
 root:
   dag:
     tasks:
+      delete-ray-pvc:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-delete-ray-pvc
+        inputs:
+          parameters:
+            name:
+              componentInputParameter: name
+            namespace:
+              componentInputParameter: namespace
+        taskInfo:
+          name: delete-ray-pvc
       destroy-ray-cluster-yaml:
         cachingOptions:
           enableCache: true
         componentRef:
           name: comp-destroy-ray-cluster-yaml
+        dependentTasks:
+        - delete-ray-pvc
         inputs:
           parameters:
             name:

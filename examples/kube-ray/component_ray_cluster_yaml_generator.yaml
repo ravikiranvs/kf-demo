@@ -59,6 +59,17 @@ implementation:
           requests:
             cpu: 4
             memory: 8G
+        volumes:
+          - name: log-volume
+            emptyDir: {}
+          - name: nfs-shared
+            persistentVolumeClaim:
+              claimName: pvc-${release_name}
+        volumeMounts:
+          - mountPath: /tmp/ray
+            name: log-volume
+          - mountPath: /mnt/nfs
+            name: nfs-shared
       worker:
         replicas: $num_nodes
         resources:
@@ -72,6 +83,17 @@ implementation:
             nvidia.com/gpu: $gpus_per_node
         annotations:
           sidecar.istio.io/inject: "false"
+        volumes:
+          - name: log-volume
+            emptyDir: {}
+          - name: nfs-shared
+            persistentVolumeClaim:
+              claimName: pvc-${release_name}
+        volumeMounts:
+          - mountPath: /tmp/ray
+            name: log-volume
+          - mountPath: /mnt/nfs
+            name: nfs-shared
       service:
         type: NodePort
       EOF
