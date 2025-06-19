@@ -23,6 +23,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         dataset_name (str): The name of the dataset to download.
     """
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    os.environ['TORCH_CUDA_ARCH_LIST'] = "8.9"
     quant_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype="float16",
