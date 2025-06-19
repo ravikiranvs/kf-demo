@@ -93,12 +93,12 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
       },
       "fp16": {"enabled": True},
       "comms_logger": {
-        "enabled": true,
-        "verbose": false,
-        "prof_all": false,
-        "debug": false
+        "enabled": True,
+        "verbose": False,
+        "prof_all": False,
+        "debug": False
       },
-      "wall_clock_breakdown": true,
+      "wall_clock_breakdown": True,
     }
 
     training_args = TrainingArguments(
