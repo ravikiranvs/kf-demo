@@ -127,6 +127,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
     
     # Resume only if a checkpoint is available
     checkpoint_path = None
+    import os
     if os.path.exists(output_dir):
         subdirs = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
         if subdirs:
