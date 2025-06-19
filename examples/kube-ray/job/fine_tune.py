@@ -87,8 +87,6 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
       "gradient_accumulation_steps": 2,
       "zero_optimization": {
         "stage": 2,
-        "offload_param": {"device": "cpu"},
-        "offload_optimizer": {"device": "cpu"},
         "gather_16bit_weights_on_model_save": False
       },
       "fp16": {"enabled": True},
