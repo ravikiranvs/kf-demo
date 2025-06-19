@@ -1,7 +1,7 @@
 import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from datasets import load_dataset
-from peft import get_peft_model, LoraConfig, TaskType
+from peft import get_peft_model, replace_lora_weights_loftq, LoraConfig, TaskType
 import ray.train.huggingface.transformers
 import deepspeed
 
@@ -78,6 +78,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         task_type=TaskType.CAUSAL_LM
     )
     model = get_peft_model(model, lora_config)
+    replace_lora_weights_loftq(peft_model)
     model.print_trainable_parameters()
     dataset_train = dataset["train"].shuffle(seed=47)
     dataset_test = dataset["test"].shuffle(seed=47)
