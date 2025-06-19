@@ -3,6 +3,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments,
 from datasets import load_dataset
 from peft import get_peft_model, LoraConfig, TaskType
 import ray.train.huggingface.transformers
+import deepspeed
 
 # Print candidate target modules for LoRA injection
 def print_lora_target_modules(model):
@@ -82,6 +83,16 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
     dataset_train = dataset["train"].shuffle(seed=47)
     dataset_test = dataset["test"].shuffle(seed=47)
 
+    deepspeed_cfg = {
+      "zero_optimization": {
+        "stage": 2,
+        "offload_param": {"device": "cpu"},
+        "offload_optimizer": {"device": "cpu"},
+        "gather_16bit_weights_on_model_save": False
+      },
+      "fp16": {"enabled": True},
+    }
+
     training_args = TrainingArguments(
         output_dir=output_dir,
         eval_strategy="epoch",
@@ -94,6 +105,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         gradient_accumulation_steps=2,
         per_device_train_batch_size=1,
         ddp_find_unused_parameters=False,
+        deepspeed=deepspeed_cfg,
     )
 
     trainer = Trainer(
