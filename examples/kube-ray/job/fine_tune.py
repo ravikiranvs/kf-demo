@@ -78,6 +78,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         task_type=TaskType.CAUSAL_LM
     )
     model = get_peft_model(model, lora_config)
+    model.gradient_checkpointing_enable()
     replace_lora_weights_loftq(model)
     model.print_trainable_parameters()
     dataset_train = dataset["train"].shuffle(seed=47)
