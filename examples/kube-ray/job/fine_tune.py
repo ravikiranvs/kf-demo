@@ -93,6 +93,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         save_total_limit=2,                  # Keep only the last 2 checkpoints
         gradient_accumulation_steps=2,
         per_device_train_batch_size=1,
+        ddp_find_unused_parameters=False,
     )
 
     trainer = Trainer(
