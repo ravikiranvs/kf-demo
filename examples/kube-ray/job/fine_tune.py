@@ -49,7 +49,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
             example["prompt"] + example["completion"],
             truncation=True,
             padding="max_length",             # or "longest"
-            max_length=1024                   # or 4096, adjust accordingly
+            max_length=2048                   # or 4096, adjust accordingly
         )
         raw_prompt_ids = tokenizer(example["prompt"], truncation=True, max_length=1024).input_ids
         prompt_len = len(raw_prompt_ids)
@@ -78,7 +78,6 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         task_type=TaskType.CAUSAL_LM
     )
     model = get_peft_model(model, lora_config)
-    model.gradient_checkpointing_enable()
     replace_lora_weights_loftq(model)
     model.print_trainable_parameters()
     dataset_train = dataset["train"].shuffle(seed=47)
