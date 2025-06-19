@@ -22,8 +22,6 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         model_name (str): The name of the pre-trained model to download.
         dataset_name (str): The name of the dataset to download.
     """
-    os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    os.environ['TORCH_CUDA_ARCH_LIST'] = "8.9"
     quant_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_compute_dtype="float16",
@@ -94,6 +92,13 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         "gather_16bit_weights_on_model_save": False
       },
       "fp16": {"enabled": True},
+      "comms_logger": {
+        "enabled": true,
+        "verbose": false,
+        "prof_all": false,
+        "debug": false
+      },
+      "wall_clock_breakdown": true,
     }
 
     training_args = TrainingArguments(
