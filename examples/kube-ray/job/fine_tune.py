@@ -91,23 +91,6 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         save_strategy="steps",               # Save checkpoint every N steps
         save_steps=500,                      # Save every 500 steps
         save_total_limit=2,                  # Keep only the last 2 checkpoints
-        deepspeed={
-            "train_batch_size": "auto",
-            "gradient_accumulation_steps": "auto",
-            "gradient_clipping": 1.0,
-            "fp16": {
-                "enabled": True
-            },
-            "zero_optimization": {
-                "stage": 1,
-                "allgather_partitions": True,
-                "allgather_bucket_size": 200000000,
-                "overlap_comm": True,
-                "contiguous_gradients": True
-            },
-            "steps_per_print": 16,
-            "wall_clock_breakdown": False
-        },
         gradient_accumulation_steps=2,
         per_device_train_batch_size=1,
     )
