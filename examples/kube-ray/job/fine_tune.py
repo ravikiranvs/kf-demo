@@ -97,10 +97,6 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         "prof_all": False,
         "debug": False
       },
-      "logging": {
-          "enabled": True,
-          "verbose": True
-      }
       "wall_clock_breakdown": True,
     }
 
