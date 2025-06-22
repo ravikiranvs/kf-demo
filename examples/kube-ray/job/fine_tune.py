@@ -87,7 +87,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
       "train_micro_batch_size_per_gpu": 1,
       "gradient_accumulation_steps": 2,
       "zero_optimization": {
-        "stage": 2,
+        "stage": 3,
         "gather_16bit_weights_on_model_save": False
       },
       "fp16": {"enabled": True},
