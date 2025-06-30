@@ -163,21 +163,23 @@ deploymentSpec:
           \    - name: RAY_PROMETHEUS_HOST\n      value: http://prometheus-operated.prometheus.svc.cluster.local:9090\n\
           \    - name: RAY_PROMETHEUS_NAME\n      value: Prometheus\n    - name: RAY_GRAFANA_IFRAME_HOST\n\
           \      value: http://172.18.52.185:31529\n  resources:\n    limits:\n  \
-          \    cpu: 4\n      memory: 16G\n    requests:\n      cpu: 4\n      memory:\
-          \ 8G\n  volumes:\n    - name: log-volume\n      emptyDir: {}\n    - name:\
-          \ nfs-shared\n      persistentVolumeClaim:\n        claimName: pvc-${release_name}\n\
-          \  volumeMounts:\n    - mountPath: /tmp/ray\n      name: log-volume\n  \
-          \  - mountPath: /mnt/nfs\n      name: nfs-shared\nworker:\n  replicas: $num_nodes\n\
-          \  resources:\n    limits:\n      cpu: 4\n      memory: 8G\n      nvidia.com/gpu:\
-          \ $gpus_per_node\n    requests:\n      cpu: 4\n      memory: 8G\n      nvidia.com/gpu:\
-          \ $gpus_per_node\n  annotations:\n    sidecar.istio.io/inject: \"false\"\
-          \n  volumes:\n    - name: log-volume\n      emptyDir: {}\n    - name: nfs-shared\n\
+          \    cpu: 4\n      memory: 16G\n      nvidia.com/gpu: $gpus_per_node\n \
+          \   requests:\n      cpu: 4\n      memory: 16G\n      nvidia.com/gpu: $gpus_per_node\n\
+          \  volumes:\n    - name: log-volume\n      emptyDir: {}\n    - name: nfs-shared\n\
           \      persistentVolumeClaim:\n        claimName: pvc-${release_name}\n\
           \  volumeMounts:\n    - mountPath: /tmp/ray\n      name: log-volume\n  \
-          \  - mountPath: /mnt/nfs\n      name: nfs-shared\nservice:\n  type: NodePort\n\
-          EOF\n\necho \"Rendering Helm templates to YAML...\"\nhelm template $release_name\
-          \ kuberay/ray-cluster \\\n  --version 1.3.0 \\\n  --namespace $namespace\
-          \ \\\n  -f /tmp/values.yaml > \"$rendered_yaml\"\n"
+          \  - mountPath: /mnt/nfs\n      name: nfs-shared\nworker:\n  replicas: $num_nodes\n\
+          \  resources:\n    limits:\n      cpu: 4\n      memory: 16G\n      nvidia.com/gpu:\
+          \ $gpus_per_node\n    requests:\n      cpu: 4\n      memory: 16G\n     \
+          \ nvidia.com/gpu: $gpus_per_node\n  annotations:\n    sidecar.istio.io/inject:\
+          \ \"false\"\n  volumes:\n    - name: log-volume\n      emptyDir: {}\n  \
+          \  - name: nfs-shared\n      persistentVolumeClaim:\n        claimName:\
+          \ pvc-${release_name}\n  volumeMounts:\n    - mountPath: /tmp/ray\n    \
+          \  name: log-volume\n    - mountPath: /mnt/nfs\n      name: nfs-shared\n\
+          service:\n  type: NodePort\nEOF\n\necho \"Rendering Helm templates to YAML...\"\
+          \nhelm template $release_name kuberay/ray-cluster \\\n  --version 1.3.0\
+          \ \\\n  --namespace $namespace \\\n  -f /tmp/values.yaml > \"$rendered_yaml\"\
+          \n"
         - '{{$.inputs.parameters[''namespace'']}}'
         - '{{$.inputs.parameters[''release_name'']}}'
         - '{{$.inputs.parameters[''num_nodes'']}}'

@@ -1,6 +1,9 @@
+import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments, Trainer, BitsAndBytesConfig
 from datasets import load_dataset
-from peft import get_peft_model, LoraConfig, TaskType
+from peft import get_peft_model, replace_lora_weights_loftq, LoraConfig, TaskType
+import ray.train.huggingface.transformers
+import deepspeed
 
 # Print candidate target modules for LoRA injection
 def print_lora_target_modules(model):
@@ -29,6 +32,7 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
     # Load model and tokenizer
     model = AutoModelForCausalLM.from_pretrained(model_name, quantization_config=quant_config)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
+    tokenizer.pad_token = tokenizer.eos_token
 
     print_lora_target_modules(model)
 
@@ -40,24 +44,30 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
             "completion": example["cypher"]
         }
 
-    # Tokenize
     def tokenize_function(example):
-        return tokenizer(
+        tokenized = tokenizer(
             example["prompt"] + example["completion"],
             truncation=True,
-            padding="max_length",
-            max_length=512
+            padding="max_length",             # or "longest"
+            max_length=3096                   # or 4096, adjust accordingly
         )
+        raw_prompt_ids = tokenizer(example["prompt"], truncation=True, max_length=1024).input_ids
+        prompt_len = len(raw_prompt_ids)
+        labels = tokenized["input_ids"].copy()
+        labels[:prompt_len] = [-100] * prompt_len
+        tokenized["labels"] = labels
+        return tokenized
 
-    # Ensure labels = input_ids (common for causal LM)
-    def format_for_training(example):
-        example["labels"] = example["input_ids"]
-        return example
-
-    dataset = load_dataset(dataset_name)
+    # dataset = load_dataset(dataset_name)
+    dataset = load_dataset(
+        dataset_name,
+        split={
+            "train": "train[:5%]",
+            "test":  "test[:5%]"
+        }
+    )
     dataset = dataset.map(data_formatter)
     dataset = dataset.map(tokenize_function)
-    dataset = dataset.map(format_for_training)
 
     lora_config = LoraConfig(
         r=8,
@@ -68,9 +78,27 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         task_type=TaskType.CAUSAL_LM
     )
     model = get_peft_model(model, lora_config)
+    replace_lora_weights_loftq(model)
     model.print_trainable_parameters()
     dataset_train = dataset["train"].shuffle(seed=47)
     dataset_test = dataset["test"].shuffle(seed=47)
+
+    deepspeed_cfg = {
+      "train_micro_batch_size_per_gpu": 1,
+      "gradient_accumulation_steps": 2,
+      "zero_optimization": {
+        "stage": 3,
+        "gather_16bit_weights_on_model_save": False
+      },
+      "fp16": {"enabled": True},
+      "comms_logger": {
+        "enabled": True,
+        "verbose": False,
+        "prof_all": False,
+        "debug": False
+      },
+      "wall_clock_breakdown": True,
+    }
 
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -78,24 +106,13 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         push_to_hub=False,
         fp16=True,
         label_names=["labels"],
-        deepspeed={
-            "train_batch_size": "auto",
-            "gradient_accumulation_steps": "auto",
-            "gradient_clipping": 1.0,
-            "fp16": {
-                "enabled": True
-            },
-            "zero_optimization": {
-                "stage": 1,
-                "allgather_partitions": True,
-                "allgather_bucket_size": 200000000,
-                "overlap_comm": True,
-                "contiguous_gradients": True
-            },
-            "steps_per_print": 16,
-            "wall_clock_breakdown": False
-        },
+        save_strategy="steps",               # Save checkpoint every N steps
+        save_steps=500,                      # Save every 500 steps
+        save_total_limit=2,                  # Keep only the last 2 checkpoints
         gradient_accumulation_steps=2,
+        per_device_train_batch_size=1,
+        ddp_find_unused_parameters=False,
+        deepspeed=deepspeed_cfg,
     )
 
     trainer = Trainer(
@@ -104,5 +121,23 @@ def finetune(model_name: str, dataset_name: str, output_dir: str):
         train_dataset=dataset_train,
         eval_dataset=dataset_test,
     )
+
+    callback = ray.train.huggingface.transformers.RayTrainReportCallback()
+    trainer.add_callback(callback)
+    trainer = ray.train.huggingface.transformers.prepare_trainer(trainer)
     
-    trainer.train()
+    # Resume only if a checkpoint is available
+    checkpoint_path = None
+    import os
+    if os.path.exists(output_dir):
+        subdirs = [d for d in os.listdir(output_dir) if d.startswith("checkpoint-")]
+        if subdirs:
+            latest_ckpt = sorted(subdirs, key=lambda x: int(x.split("-")[-1]))[-1]
+            checkpoint_path = os.path.join(output_dir, latest_ckpt)
+            print(f"Resuming from checkpoint: {checkpoint_path}")
+        else:
+            print("No checkpoints found. Starting fresh.")
+    else:
+        print("Output directory does not exist. Starting fresh.")
+
+    trainer.train(resume_from_checkpoint=checkpoint_path)

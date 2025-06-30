@@ -56,9 +56,11 @@ implementation:
           limits:
             cpu: 4
             memory: 16G
+            nvidia.com/gpu: $gpus_per_node
           requests:
             cpu: 4
-            memory: 8G
+            memory: 16G
+            nvidia.com/gpu: $gpus_per_node
         volumes:
           - name: log-volume
             emptyDir: {}
@@ -75,11 +77,11 @@ implementation:
         resources:
           limits:
             cpu: 4
-            memory: 8G
+            memory: 16G
             nvidia.com/gpu: $gpus_per_node
           requests:
             cpu: 4
-            memory: 8G
+            memory: 16G
             nvidia.com/gpu: $gpus_per_node
         annotations:
           sidecar.istio.io/inject: "false"
