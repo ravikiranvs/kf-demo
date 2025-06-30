@@ -1,0 +1,315 @@
+# PIPELINE DEFINITION
+# Name: rag-ingest-pipeline
+components:
+  comp-download-files-from-github:
+    executorLabel: exec-download-files-from-github
+    outputDefinitions:
+      artifacts:
+        output_dir:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-generate-embeddings:
+    executorLabel: exec-generate-embeddings
+    inputDefinitions:
+      artifacts:
+        input_structured_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        output_embeddings:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+  comp-ingest-embeddings-to-milvus:
+    executorLabel: exec-ingest-embeddings-to-milvus
+    inputDefinitions:
+      artifacts:
+        input_embeddings:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+      parameters:
+        collection_name:
+          defaultValue: rag_embeddings
+          isOptional: true
+          parameterType: STRING
+        milvus_host:
+          defaultValue: standalone-milvus.milvus.svc.cluster.local
+          isOptional: true
+          parameterType: STRING
+        milvus_port:
+          defaultValue: 19530.0
+          isOptional: true
+          parameterType: NUMBER_INTEGER
+  comp-process-pdfs-with-unstructured:
+    executorLabel: exec-process-pdfs-with-unstructured
+    inputDefinitions:
+      artifacts:
+        input_dir:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+    outputDefinitions:
+      artifacts:
+        output_structured_data:
+          artifactType:
+            schemaTitle: system.Dataset
+            schemaVersion: 0.0.1
+deploymentSpec:
+  executors:
+    exec-download-files-from-github:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - download_files_from_github
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'gitpython'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef download_files_from_github(output_dir: Output[Dataset]):\n  \
+          \  import git\n    import shutil\n    from pathlib import Path\n\n    repo_url\
+          \ = \"https://github.com/ravikiranvs/kf-demo.git\"\n    target_subdir =\
+          \ \"examples/rag-ingest/files\"\n\n    # Clone the repo to /tmp\n    repo_path\
+          \ = \"/tmp/kf-demo\"\n    if Path(repo_path).exists():\n        shutil.rmtree(repo_path)\n\
+          \    git.Repo.clone_from(repo_url, repo_path)\n\n    # Copy the desired\
+          \ files to the output directory\n    source_dir = Path(repo_path) / target_subdir\n\
+          \    dest_dir = Path(output_dir.path)\n    dest_dir.mkdir(parents=True,\
+          \ exist_ok=True)\n\n    for file_path in source_dir.iterdir():\n       \
+          \ if file_path.is_file():\n            shutil.copy(file_path, dest_dir /\
+          \ file_path.name)\n\n"
+        image: python:3.9
+    exec-generate-embeddings:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - generate_embeddings
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'sentence-transformers'\
+          \ && \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef generate_embeddings(\n    input_structured_data: Input[Dataset],\n\
+          \    output_embeddings: Output[Dataset]\n):\n    import os\n    import json\n\
+          \    from pathlib import Path\n    from sentence_transformers import SentenceTransformer\n\
+          \n    # Initialize the embedding model\n    model = SentenceTransformer(\"\
+          BAAI/llm-embedder\")\n\n    input_path = Path(input_structured_data.path)\n\
+          \    output_path = Path(output_embeddings.path)\n    output_path.mkdir(parents=True,\
+          \ exist_ok=True)\n\n    for file in input_path.glob(\"*.json\"):\n     \
+          \   with open(file, 'r') as f:\n            elements = json.load(f)\n\n\
+          \        # Extract text from elements\n        texts = [el.get(\"text\"\
+          , \"\") for el in elements if el.get(\"text\")]\n\n        # Generate embeddings\n\
+          \        embeddings = model.encode(texts)\n\n        # Prepare data with\
+          \ metadata\n        data = []\n        for idx, (text, embedding) in enumerate(zip(texts,\
+          \ embeddings)):\n            data.append({\n                \"chunk_id\"\
+          : idx,\n                \"text\": text,\n                \"embedding\":\
+          \ embedding.tolist(),\n                \"source_file\": file.name\n    \
+          \        })\n\n        # Save embeddings to a JSON file\n        output_file\
+          \ = output_path / f\"{file.stem}_embeddings.json\"\n        with open(output_file,\
+          \ 'w') as f:\n            json.dump(data, f, indent=2)\n\n"
+        image: huggingface/transformers-pytorch-gpu:latest
+        resources:
+          accelerator:
+            count: '1'
+            resourceCount: '1'
+            resourceType: nvidia.com/gpu
+            type: nvidia.com/gpu
+    exec-ingest-embeddings-to-milvus:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - ingest_embeddings_to_milvus
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"'  &&\
+          \  python3 -m pip install --quiet --no-warn-script-location 'pymilvus' &&\
+          \ \"$0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef ingest_embeddings_to_milvus(\n    input_embeddings: Input[Dataset],\n\
+          \    milvus_host: str = 'standalone-milvus.milvus.svc.cluster.local',\n\
+          \    milvus_port: int = 19530,\n    collection_name: str = 'rag_embeddings'\n\
+          ):\n    from pymilvus import connections, FieldSchema, CollectionSchema,\
+          \ DataType, Collection, utility\n    import os\n    import json\n    from\
+          \ pathlib import Path\n\n    # Connect to Milvus\n    connections.connect(alias=\"\
+          default\", host=milvus_host, port=milvus_port)\n    print(f\"Connected to\
+          \ Milvus at {milvus_host}:{milvus_port}\")\n\n    # Check if collection\
+          \ exists\n    if utility.has_collection(collection_name):\n        print(f\"\
+          Collection '{collection_name}' exists. Dropping it.\")\n        collection\
+          \ = Collection(name=collection_name)\n        collection.drop()\n      \
+          \  print(f\"Collection '{collection_name}' dropped.\")\n\n    # Define schema\n\
+          \    fields = [\n        FieldSchema(name=\"chunk_id\", dtype=DataType.INT64,\
+          \ is_primary=True, auto_id=False),\n        FieldSchema(name=\"text\", dtype=DataType.VARCHAR,\
+          \ max_length=65535),\n        FieldSchema(name=\"embedding\", dtype=DataType.FLOAT_VECTOR,\
+          \ dim=768),\n        FieldSchema(name=\"source_file\", dtype=DataType.VARCHAR,\
+          \ max_length=65535),\n    ]\n    schema = CollectionSchema(fields=fields,\
+          \ description=\"RAG Embeddings Collection\")\n\n    # Create collection\n\
+          \    collection = Collection(name=collection_name, schema=schema)\n    print(f\"\
+          Collection '{collection_name}' created.\")\n\n    # Insert data\n    input_path\
+          \ = Path(input_embeddings.path)\n    for file in input_path.glob(\"*_embeddings.json\"\
+          ):\n        with open(file, 'r') as f:\n            data = json.load(f)\n\
+          \n        if not data:\n            print(f\"No data found in {file.name}.\
+          \ Skipping.\")\n            continue\n\n        chunk_ids = [item[\"chunk_id\"\
+          ] for item in data]\n        texts = [item[\"text\"] for item in data]\n\
+          \        embeddings = [item[\"embedding\"] for item in data]\n        source_files\
+          \ = [item[\"source_file\"] for item in data]\n\n        entities = [chunk_ids,\
+          \ texts, embeddings, source_files]\n        collection.insert(entities)\n\
+          \        print(f\"Inserted {len(chunk_ids)} records from {file.name} into\
+          \ '{collection_name}'.\")\n\n    # Flush the collection to ensure data is\
+          \ persisted\n    collection.flush()\n    print(f\"Collection '{collection_name}'\
+          \ flushed.\")\n\n    # Create index on the 'embedding' field\n    index_params\
+          \ = {\n        \"index_type\": \"IVF_FLAT\",\n        \"metric_type\": \"\
+          L2\",\n        \"params\": {\"nlist\": 128}\n    }\n    collection.create_index(field_name=\"\
+          embedding\", index_params=index_params)\n    print(f\"Index created on 'embedding'\
+          \ field of collection '{collection_name}'.\")\n\n    # Load collection into\
+          \ memory\n    collection.load()\n    print(f\"Collection '{collection_name}'\
+          \ is loaded and ready for querying.\")\n\n"
+        image: python:3.9
+    exec-process-pdfs-with-unstructured:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - process_pdfs_with_unstructured
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.11.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef process_pdfs_with_unstructured(input_dir: Input[Dataset], output_structured_data:\
+          \ Output[Dataset]):\n    import os\n    import json\n    from unstructured.partition.pdf\
+          \ import partition_pdf\n\n    input_path = input_dir.path\n    output_path\
+          \ = output_structured_data.path\n    os.makedirs(output_path, exist_ok=True)\n\
+          \n    for filename in os.listdir(input_path):\n        if filename.lower().endswith('.pdf'):\n\
+          \            file_path = os.path.join(input_path, filename)\n          \
+          \  elements = partition_pdf(filename=file_path)\n            output_file\
+          \ = os.path.join(output_path, f\"{os.path.splitext(filename)[0]}.json\"\
+          )\n            with open(output_file, 'w') as f:\n                json.dump([element.to_dict()\
+          \ for element in elements], f)\n\n"
+        image: downloads.unstructured.io/unstructured-io/unstructured:latest
+pipelineInfo:
+  name: rag-ingest-pipeline
+root:
+  dag:
+    tasks:
+      download-files-from-github:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-download-files-from-github
+        taskInfo:
+          name: download-files-from-github
+      generate-embeddings:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-generate-embeddings
+        dependentTasks:
+        - process-pdfs-with-unstructured
+        inputs:
+          artifacts:
+            input_structured_data:
+              taskOutputArtifact:
+                outputArtifactKey: output_structured_data
+                producerTask: process-pdfs-with-unstructured
+        taskInfo:
+          name: generate-embeddings
+      ingest-embeddings-to-milvus:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-ingest-embeddings-to-milvus
+        dependentTasks:
+        - generate-embeddings
+        inputs:
+          artifacts:
+            input_embeddings:
+              taskOutputArtifact:
+                outputArtifactKey: output_embeddings
+                producerTask: generate-embeddings
+        taskInfo:
+          name: ingest-embeddings-to-milvus
+      process-pdfs-with-unstructured:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-process-pdfs-with-unstructured
+        dependentTasks:
+        - download-files-from-github
+        inputs:
+          artifacts:
+            input_dir:
+              taskOutputArtifact:
+                outputArtifactKey: output_dir
+                producerTask: download-files-from-github
+        taskInfo:
+          name: process-pdfs-with-unstructured
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.11.0
