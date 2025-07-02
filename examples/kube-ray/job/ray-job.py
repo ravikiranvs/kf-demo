@@ -16,7 +16,7 @@ def train_func():
     print(f"Running on node: {os.uname().nodename}")
     print(f"CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES')}")
     
-    model_name = "Qwen/Qwen2.5-Coder-14B"
+    model_name = "Qwen/Qwen2.5-Coder-1.5B"
     dataset_name = "neo4j/text2cypher-2025v1"
     finetune(model_name, dataset_name, "checkpoint_dir")
 
@@ -29,7 +29,7 @@ def save_model(train_result):
         )
 
         # Load base model and merge adapter
-        model_name = "Qwen/Qwen2.5-Coder-14B"
+        model_name = "Qwen/Qwen2.5-Coder-1.5B"
         base = AutoModelForCausalLM.from_pretrained(model_name)
         merged_model = PeftModel.from_pretrained(base, checkpoint_path).merge_and_unload()
         tokenizer = AutoTokenizer.from_pretrained(model_name)
