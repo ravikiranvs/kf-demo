@@ -1,4 +1,4 @@
-# Welcome to the Kubeflow Deployment Guide
+# Welcome to the AI Platform Guide
 
 This guide is designed to help you set up and deploy an AI platform with a scalable and flexible way to deploy and manage machine learning workloads.
 
