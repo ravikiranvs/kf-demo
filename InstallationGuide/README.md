@@ -36,3 +36,4 @@ The following guides provide detailed information on deploying and configuring i
 
 * [SSH for Kubeflow](./SSH.md)
 * [Kubernetes Dashboard](./Kubernetes-Dashboard.md)
+* [Harbor](./Harbor.md)
