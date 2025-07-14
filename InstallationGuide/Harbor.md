@@ -2,7 +2,7 @@
 
 This document describes how to deploy **Harbor** on Kubernetes using Helm, configure access credentials, and push/pull images from the Harbor registry.
 
-## 📦 Deploy Harbor
+## Deploy Harbor
 
 *Remember to change the <node-ip> to the IP address of a Kubernetes node. Add the Admin password.*
 
