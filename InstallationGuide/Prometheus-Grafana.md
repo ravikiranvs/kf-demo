@@ -35,7 +35,7 @@ grafana:
       org_role: Viewer
 EOF
 
-helm install prometheus-community/kube-prometheus-stack \
+helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
   -n prometheus \
   --create-namespace \
   --set prometheus.service.type=NodePort \
