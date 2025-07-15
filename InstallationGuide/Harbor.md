@@ -17,6 +17,10 @@ expose:
     enabled: false
 externalURL: http://<node-ip>:30002
 harborAdminPassword: "<password>"
+persistence:
+  persistentVolumeClaim:
+    registry:
+      size: 100Gi
 EOF
 
 helm install harbor harbor/harbor \
