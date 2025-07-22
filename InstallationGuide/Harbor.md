@@ -106,6 +106,8 @@ docker push <node-ip>:30002/<project-name>/<image-name>:<tag>
 docker save <image-name>:<tag> -o <image-filename>.tar
 ```
 
+*Copy the image tar file to each Kubernetes node*
+
 
 **On each Kubernetes node**
 ```bash
