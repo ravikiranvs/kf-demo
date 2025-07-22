@@ -69,7 +69,7 @@ Replace `<harbor-project>`, `<image-name>`, and `<tag>` as appropriate.
 
 For developers pushing/pulling images from Harbor directly with Docker:
 
-### 1Configure Docker to trust the Harbor registry:
+### Configure Docker to trust the Harbor registry:
 
 Edit Docker Engine config (e.g. **Docker Desktop → Settings → Docker Engine**), and add your Harbor endpoint to `insecure-registries`:
 
@@ -96,4 +96,19 @@ docker tag <image-name>:<tag> <node-ip>:30002/<project-name>/<image-name>:<tag>
 docker push <node-ip>:30002/<project-name>/<image-name>:<tag>
 ```
 
+---
+
+## Adding Image to Kubernetes without Harbor
+
+**On docker client**
+
+```cmd
+docker save <image-name>:<tag> -o <image-filename>.tar
+```
+
+
+**On each Kubernetes node**
+```bash
+sudo /snap/k8s/current/bin/ctr -n k8s.io image import <image-filename>.tar
+```
 ---
