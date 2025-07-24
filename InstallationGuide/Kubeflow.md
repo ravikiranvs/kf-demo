@@ -128,7 +128,6 @@ Relate components:
 ```bash
 juju relate mlflow-server:secrets resource-dispatcher:secrets
 juju relate mlflow-server:pod-defaults resource-dispatcher:pod-defaults
-juju integrate mlflow-minio:object-storage kserve-controller:object-storage
 ```
 
 Configure MinIO secret key (replace with actual value from earlier step):
