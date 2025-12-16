@@ -53,4 +53,6 @@ You can choose **one of the following Kubernetes installation approaches** based
 * [SSH for Kubeflow](./SSH.md)
 * [Kubernetes Dashboard](./Kubernetes-Dashboard.md)
 * [Harbor](./Harbor.md)
+* [MinIO](./MinIO.md)
+
 
