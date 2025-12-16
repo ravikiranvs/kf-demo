@@ -17,9 +17,25 @@ Before you start deploying the AI platform, make sure you have the following pre
 
 ## AI Platform Deployment
 
-The following guides provide detailed information on deploying and configuring individual every component of the AI Platform:
+The following guides provide detailed instructions for deploying and configuring **each component of the AI Platform**.
 
-* [Kubernetes Cluster Setup + kubectl + helm](./Kubernetes.md)
+You can choose **one of the following Kubernetes installation approaches** based on your requirements: **Snap-based Kubernetes** or **Kubespray**.
+
+| Aspect               | Snap-based Kubernetes | Kubespray   |
+| -------------------- | --------------------- | ----------- |
+| Setup speed          | Very fast             | Moderate    |
+| Customization        | Limited               | Extensive   |
+| Multi-node           | Limited               | First-class |
+| Production readiness | Low                   | High        |
+| HA support           | No                    | Yes         |
+
+### Core Platform Setup
+
+* [Kubernetes Cluster Setup (*Snap*) + kubectl + Helm](./Kubernetes.md)
+* [Kubernetes Cluster Setup (*Kubespray*) + kubectl + Helm](./Kubespray.md)
+
+### Platform Add-ons and Services
+
 * [NVIDIA GPU Operator Helm Deployment](./GPU-Operator.md)
 * [Prometheus and Grafana + NVIDIA DCGM Exporter Monitoring Stack](./Prometheus-Grafana.md)
 * [NFS Server + Kubernetes NFS Provisioner Setup](./NFS-Storage.md)
@@ -37,3 +53,4 @@ The following guides provide detailed information on deploying and configuring i
 * [SSH for Kubeflow](./SSH.md)
 * [Kubernetes Dashboard](./Kubernetes-Dashboard.md)
 * [Harbor](./Harbor.md)
+
